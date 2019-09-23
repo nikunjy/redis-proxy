@@ -1,56 +1,24 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/go-redis/redis"
 	"github.com/jessevdk/go-flags"
 	"github.com/nikunjy/redis-proxy/proxy"
 	"github.com/nikunjy/redis-proxy/store"
 )
 
-func ExampleNewClient() *redis.Client {
-	client := redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-
-	pong, err := client.Ping().Result()
-	fmt.Println(pong, err)
-	return client
-}
-
-func ExampleClient(client *redis.Client) {
-	err := client.Set("key", "value", 0).Err()
-	if err != nil {
-		panic(err)
-	}
-
-	val, err := client.Get("key").Result()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("key", val)
-
-	val2, err := client.Get("key2").Result()
-	if err == redis.Nil {
-		fmt.Println("key2 does not exist")
-	} else if err != nil {
-		panic(err)
-	} else {
-		fmt.Println("key2", val2)
-	}
-}
-
 type Options struct {
-	Redis         string `long:"redis" description:"redis address" default:"localhost:6379" required:"true"`
-	CacheSize     int    `long:"cache-size" description:"cache size"`
-	ServerPort    int    `long:"proxy-port" descriptiont:"port which proxy listens on"`
-	ExpirySeconds int    `long:"expiry-seconds" desciption:"expiry seconds for cache entries"`
+	CacheSize     int `long:"cache-size" description:"cache size"`
+	ServerPort    int `long:"proxy-port" descriptiont:"port which proxy listens on"`
+	ExpirySeconds int `long:"expiry-seconds" desciption:"expiry seconds for cache entries"`
 }
 
 func main() {
@@ -73,7 +41,8 @@ func main() {
 			proxy.WithCacheTTL(time.Second*time.Duration(opts.ExpirySeconds)),
 		)
 	}
-	redis, err := store.NewRedis(opts.Redis)
+	redisURL := getEnv("REDIS_URL", "localhost:6379")
+	redis, err := store.NewRedis(redisURL)
 	if err != nil {
 		log.Fatal("Error making redis client", err)
 	}
@@ -81,5 +50,40 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Fatal(server.ListenAndServe())
+	srv := server.HttpServer()
+
+	// Start Server
+	go func() {
+		log.Println("Starting Server ", srv.Addr)
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	// Graceful Shutdown
+	waitForShutdown(srv)
+}
+
+func waitForShutdown(srv *http.Server) {
+	interruptChan := make(chan os.Signal, 1)
+	signal.Notify(interruptChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
+	// Block until we receive our signal.
+	<-interruptChan
+
+	// Create a deadline to wait for.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+	srv.Shutdown(ctx)
+
+	log.Println("Shutting down")
+	os.Exit(0)
+}
+
+func getEnv(key, defaultValue string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	return value
 }

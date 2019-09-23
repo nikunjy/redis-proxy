@@ -130,10 +130,15 @@ func (p *proxyHandler) put(key, val string) error {
 	return nil
 }
 
-func (p *proxyHandler) ListenAndServe() error {
+func (p *proxyHandler) HttpServer() *http.Server {
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/get", p.Get).Methods("GET")
 	router.HandleFunc("/cached_get", p.CachedGet).Methods("GET")
 	router.HandleFunc("/put", p.Put).Methods("PUT")
-	return http.ListenAndServe(fmt.Sprintf(":%d", p.config.listenPort), router)
+	return &http.Server{
+		Handler:      router,
+		Addr:         fmt.Sprintf(":%d", p.config.listenPort),
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
 }

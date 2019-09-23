@@ -1,0 +1,6 @@
+FROM golang:latest
+WORKDIR /app
+COPY . .
+RUN go mod download
+RUN go build -o redis-proxy .
+CMD ["./redis-proxy", "--proxy-port", "8081"]

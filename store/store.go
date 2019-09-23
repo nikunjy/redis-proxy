@@ -25,8 +25,7 @@ func NewRedis(addr string) (*Redis, error) {
 		Password: "", // no password set
 		DB:       0,  // use default DB
 	})
-	_, err := client.Ping().Result()
-	if err != nil {
+	if _, err := client.Ping().Result(); err != nil {
 		return nil, err
 	}
 	return &Redis{
