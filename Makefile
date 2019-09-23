@@ -10,7 +10,7 @@ GOVET=go vet
 GOFMT=gofmt
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
-
+export GO111MODULE=on
 .PHONY: dependencies
 dependencies:
 	@echo "Installing golang dep if needed and looking for dependencies"
