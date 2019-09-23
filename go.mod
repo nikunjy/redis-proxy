@@ -8,6 +8,8 @@ require (
 	github.com/gorilla/mux v1.7.3
 	github.com/hashicorp/golang-lru v0.5.3
 	github.com/jessevdk/go-flags v1.4.0
+	github.com/jonboulle/clockwork v0.1.0
+	github.com/stretchr/testify v1.4.0
 	golang.org/x/crypto v0.0.0-20190911031432-227b76d455e7 // indirect
 	golang.org/x/lint v0.0.0-20190909230951-414d861bb4ac // indirect
 	golang.org/x/net v0.0.0-20190921015927-1a5e07d1ff72 // indirect

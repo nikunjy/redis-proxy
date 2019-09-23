@@ -8,6 +8,7 @@ import (
 	"github.com/gorilla/mux"
 	lru "github.com/hashicorp/golang-lru"
 
+	"github.com/jonboulle/clockwork"
 	"github.com/nikunjy/redis-proxy/store"
 )
 
@@ -15,6 +16,7 @@ type proxyHandler struct {
 	config Config
 	cache  *lru.Cache
 	store  store.Store
+	clock  clockwork.Clock
 }
 
 type cachedValue struct {
@@ -35,6 +37,7 @@ func New(store store.Store, options ...Option) (*proxyHandler, error) {
 		config: *c,
 		cache:  cache,
 		store:  store,
+		clock:  clockwork.NewRealClock(),
 	}, nil
 }
 
@@ -43,7 +46,7 @@ func (p *proxyHandler) get(key string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p.cache.Add(key, cachedValue{val, time.Now()})
+	p.cache.Add(key, cachedValue{val, p.clock.Now()})
 	return val, nil
 }
 
@@ -58,7 +61,7 @@ func (p *proxyHandler) cachedGet(key string) (string, error) {
 		p.cache.Remove(key)
 		return p.get(key)
 	}
-	if time.Now().Sub(cv.storedAt) > p.config.cacheTTL {
+	if p.clock.Now().Sub(cv.storedAt) > p.config.cacheTTL {
 		return p.get(key)
 	}
 	return cv.val, nil
@@ -126,7 +129,7 @@ func (p *proxyHandler) put(key, val string) error {
 	if err := p.store.Set(key, val); err != nil {
 		return err
 	}
-	p.cache.Add(key, cachedValue{val, time.Now()})
+	p.cache.Add(key, cachedValue{val, p.clock.Now()})
 	return nil
 }
 
