@@ -29,3 +29,16 @@ curl 'localhost:8081/get?key=foo'
 
 
 4. You can stop the service using `docker-compose kill`
+
+
+## Running tests 
+
+1. Unit tests
+```
+make test
+```
+
+2. Integration tests
+```
+make integration_test
+```
