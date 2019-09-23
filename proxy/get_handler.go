@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -133,6 +134,7 @@ func (p *proxyHandler) put(key, val string) error {
 }
 
 func (p *proxyHandler) HttpServer() *http.Server {
+	log.Println("Creating a http proxy server", p.config)
 	router := mux.NewRouter().StrictSlash(true)
 	router.HandleFunc("/get", p.CachedGet).Methods("GET")
 	router.HandleFunc("/put", p.Put).Methods("PUT")

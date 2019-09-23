@@ -43,3 +43,7 @@ lint:
 .PHONY: test
 test:
 	$(GOTEST) $(PKGS)
+
+.PHONY: integration_test
+integration_test:
+	go run integration_test/main.go

@@ -1,4 +1,6 @@
 FROM golang:latest
+ARG EXPIRY
+ENV CACHE_EXPIRY "$EXPIRY"
 WORKDIR /app
 COPY . .
 RUN go mod download

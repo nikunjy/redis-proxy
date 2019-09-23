@@ -1,2 +1,3 @@
+integration_test/integration_test
 vendor
 redis-proxy

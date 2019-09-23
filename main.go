@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -28,14 +29,23 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	if expiry := getEnv("CACHE_EXPIRY", ""); expiry != "" {
+		if parsed, err := strconv.Atoi(expiry); err == nil {
+			opts.ExpirySeconds = parsed
+		}
+	}
 	var proxyOptions []proxy.Option
 	if opts.CacheSize > 0 {
+		log.Println("Setting cache size", opts.CacheSize)
 		proxyOptions = append(proxyOptions, proxy.WithCacheSize(opts.CacheSize))
 	}
 	if opts.ServerPort > 0 {
+		log.Println("Setting proxy server port", opts.ServerPort)
 		proxyOptions = append(proxyOptions, proxy.ListenOn(opts.ServerPort))
 	}
 	if opts.ExpirySeconds > 0 {
+		log.Println("Setting expiry seconds", opts.ExpirySeconds)
 		proxyOptions = append(
 			proxyOptions,
 			proxy.WithCacheTTL(time.Second*time.Duration(opts.ExpirySeconds)),
