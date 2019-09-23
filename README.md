@@ -1,10 +1,9 @@
 # Http Redis Proxy
 A simple http proxy over redis [client](https://github.com/go-redis/redis)
 
-This proxy lets you make three kinds of requests: 
-* Get - This is a simple get as you would do on redis 
+This proxy lets you make two kinds of requests: 
+* Get - This is a simple get as you would do on redis. Proxy keeps around a local LRU cache and if a key can be found in the LRU then it returns the response directly without looking into the redis store.
 * Put - This is a simple put with no expiration on redis 
-* CachedGet - Proxy maintains a local LRU cache and looks up stuff in there before looking into redis
 
 
 ## Run it locally
@@ -29,9 +28,4 @@ curl 'localhost:8081/get?key=foo'
 ```
 
 
-4. If you did cached get it will not even go to redis
-```
-curl 'localhost:8081/cached_get?key=foo'
-```
-
-5. You can stop the service using `docker-compose kill`
+4. You can stop the service using `docker-compose kill`

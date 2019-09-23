@@ -3,6 +3,7 @@ package proxy
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -41,16 +42,23 @@ func New(store store.Store, options ...Option) (*proxyHandler, error) {
 	}, nil
 }
 
-func (p *proxyHandler) get(key string) (string, error) {
-	val, err := p.store.Get(key)
-	if err != nil {
-		return "", err
-	}
-	p.cache.Add(key, cachedValue{val, p.clock.Now()})
-	return val, nil
+type getResponse struct {
+	val       string
+	fromCache bool
 }
 
-func (p *proxyHandler) cachedGet(key string) (string, error) {
+func (p *proxyHandler) get(key string) (*getResponse, error) {
+	val, err := p.store.Get(key)
+	if err != nil {
+		return nil, err
+	}
+	p.cache.Add(key, cachedValue{val, p.clock.Now()})
+	return &getResponse{
+		val: val,
+	}, nil
+}
+
+func (p *proxyHandler) cachedGet(key string) (*getResponse, error) {
 	val, ok := p.cache.Get(key)
 	if !ok {
 		return p.get(key)
@@ -64,14 +72,13 @@ func (p *proxyHandler) cachedGet(key string) (string, error) {
 	if p.clock.Now().Sub(cv.storedAt) > p.config.cacheTTL {
 		return p.get(key)
 	}
-	return cv.val, nil
+	return &getResponse{
+		val:       cv.val,
+		fromCache: true,
+	}, nil
 }
 
-func processGetWithFn(
-	w http.ResponseWriter,
-	r *http.Request,
-	getFn func(string) (string, error),
-) {
+func (p *proxyHandler) CachedGet(w http.ResponseWriter, r *http.Request) {
 	vals := r.URL.Query()
 	key := vals.Get("key")
 	if len(key) == 0 {
@@ -79,7 +86,7 @@ func processGetWithFn(
 		w.Write([]byte("no key specified"))
 		return
 	}
-	val, err := getFn(string(key))
+	resp, err := p.cachedGet(string(key))
 	if err != nil {
 		if err == store.ErrKeyNotFound {
 			w.WriteHeader(http.StatusNotFound)
@@ -89,17 +96,9 @@ func processGetWithFn(
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(fmt.Sprintf("Error getting key %s", key)))
 	}
+	w.Header().Set("cached-value", strconv.FormatBool(resp.fromCache))
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(val))
-
-}
-
-func (p *proxyHandler) CachedGet(w http.ResponseWriter, r *http.Request) {
-	processGetWithFn(w, r, p.cachedGet)
-}
-
-func (p *proxyHandler) Get(w http.ResponseWriter, r *http.Request) {
-	processGetWithFn(w, r, p.get)
+	w.Write([]byte(resp.val))
 }
 
 func (p *proxyHandler) Put(w http.ResponseWriter, r *http.Request) {
@@ -135,8 +134,7 @@ func (p *proxyHandler) put(key, val string) error {
 
 func (p *proxyHandler) HttpServer() *http.Server {
 	router := mux.NewRouter().StrictSlash(true)
-	router.HandleFunc("/get", p.Get).Methods("GET")
-	router.HandleFunc("/cached_get", p.CachedGet).Methods("GET")
+	router.HandleFunc("/get", p.CachedGet).Methods("GET")
 	router.HandleFunc("/put", p.Put).Methods("PUT")
 	return &http.Server{
 		Handler:      router,

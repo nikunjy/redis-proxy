@@ -10,15 +10,17 @@ import (
 )
 
 func requireKey(t *testing.T, proxy *proxyHandler, key string, expected string) {
-	val, err := proxy.get(key)
+	resp, err := proxy.cachedGet(key)
 	require.NoError(t, err)
-	require.EqualValues(t, expected, val)
+	require.EqualValues(t, expected, resp.val)
+	require.False(t, resp.fromCache)
 }
 
 func requireCacheKey(t *testing.T, proxy *proxyHandler, key string, expected string) {
-	val, err := proxy.cachedGet(key)
+	resp, err := proxy.cachedGet(key)
 	require.NoError(t, err)
-	require.EqualValues(t, expected, val)
+	require.EqualValues(t, expected, resp.val)
+	require.True(t, resp.fromCache)
 }
 
 func TestLRUEviction(t *testing.T) {
@@ -33,31 +35,23 @@ func TestLRUEviction(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, proxy.put("a", "1"))
 	require.NoError(t, proxy.put("b", "2"))
-	require.NoError(t, proxy.put("c", "3"))
-
-	// the regular gets will force the store lookups even though
-	// put has stored them inside the cache
-	requireKey(t, proxy, "a", "1")
-	requireKey(t, proxy, "b", "2")
 	requireCacheKey(t, proxy, "a", "1")
 	requireCacheKey(t, proxy, "b", "2")
-
-	requireCounts(t, map[string]int{
-		"a": 1,
-		"b": 1,
-	}, counts)
 	requireCacheKey(t, proxy, "a", "1")
 
 	// b will be knocked out
-	requireKey(t, proxy, "c", "3")
+	require.NoError(t, proxy.put("c", "3"))
 
+	requireCacheKey(t, proxy, "a", "1")
+	requireCacheKey(t, proxy, "c", "3")
 	// b will have to be pulled from the actual store again
-	requireCacheKey(t, proxy, "b", "2")
+	requireKey(t, proxy, "b", "2")
 	requireCounts(t, map[string]int{
-		"a": 1,
-		"c": 1,
-		"b": 2,
+		"b": 1,
 	}, counts)
+
+	// last b get call will have knocked out c
+	requireCacheKey(t, proxy, "b", "2")
 }
 
 func TestCacheExpiry(t *testing.T) {
@@ -82,7 +76,7 @@ func TestCacheExpiry(t *testing.T) {
 
 	// cache will be expired
 	fakeClock.Advance(time.Second * 2)
-	requireCacheKey(t, proxy, "a", "1")
+	requireKey(t, proxy, "a", "1")
 	requireCounts(t, map[string]int{"a": 1}, counts)
 }
 
